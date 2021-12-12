@@ -7,7 +7,7 @@ data SExp = SAtom String | SList (List SExp)
 
 Pretty SExp where
     pretty (SAtom x) = fromString x
-    pretty (SList xs) = hcat ["(", !(traverse pretty xs >>= sep), ")"]
+    pretty (SList xs) = hcat ["(", sep $ map pretty xs, ")"]
 
 mySExp : SExp
 mySExp = SList [SAtom "abcd", SAtom "efgh", SAtom "ijkl", SAtom "mnop"]
@@ -19,4 +19,4 @@ opts : LayoutOpts
 opts = Opts 40
 
 main : IO ()
-main = putStrLn $ fromMaybe "ERROR" $ BB.render opts $ runReader opts $ pretty exp2
+main = putStrLn $ fromMaybe "ERROR" $ BB.render opts $ pretty exp2

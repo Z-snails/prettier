@@ -21,6 +21,11 @@ record Layout where
     lastLine : Int
     height : Int
 
+export
+record Doc (opts : LayoutOpts) where
+    constructor MkDoc
+    layouts : List Layout
+
 namespace Layout
     ||| Render the given layout
     export
@@ -126,23 +131,17 @@ namespace Layout
     indent : Nat -> Layout -> Layout
     indent k x = fromString (replicate k ' ') <+> x
 
+visible : LayoutOpts -> Layout -> Bool
+visible opts x = x.maxLine <= opts.lineLength
+
+shortest : List Layout -> Maybe Layout
+shortest [] = Nothing
+shortest (x :: xs) = Just $ foldl (\x, y => if x.height <= y.height then x else y) x xs
+
+||| Render the best candidate from the given set of layouts
 export
-record Doc where
-    constructor MkDoc
-    layouts : List Layout
-
-parameters (opts : LayoutOpts)
-    visible : Layout -> Bool
-    visible x = x.maxLine <= opts.lineLength
-
-    shortest : List Layout -> Maybe Layout
-    shortest [] = Nothing
-    shortest (x :: xs) = Just $ foldl (\x, y => if x.height <= y.height then x else y) x xs
-
-    ||| Render the best candidate from the given set of layouts
-    export
-    render : Doc -> Maybe String
-    render (MkDoc xs) = map render $ shortest $ filter visible xs
+render : (opts : _) -> Doc opts -> Maybe String
+render opts (MkDoc xs) = map render $ shortest $ filter (visible opts) xs
 
 namespace Doc
     insert : Layout -> List Layout -> List Layout -> List Layout
@@ -171,14 +170,13 @@ namespace Doc
     combine (x :: xs) ys = combine xs (insert x ys [])
 
     export %inline
-    (<|>) : Doc -> Doc -> Doc
+    (<|>) : Doc opts -> Doc opts -> Doc opts
     MkDoc xs <|> MkDoc ys = MkDoc $ combine xs ys
 
     export %inline
-    (<+>) : MonadReader LayoutOpts m => Doc -> Doc -> m Doc
-    MkDoc xs <+> MkDoc ys = do
-        opts <- ask
-        pure $ MkDoc $ combine
+    (<+>) : {opts : _} -> Doc opts -> Doc opts -> Doc opts
+    MkDoc xs <+> MkDoc ys =
+        MkDoc $ combine
             [ z
             | x <- xs
             , y <- ys
@@ -188,38 +186,33 @@ namespace Doc
             []
 
     export
-    FromString Doc where
+    FromString (Doc opts) where
         fromString str = MkDoc [fromString str]
 
     export
-    MonadReader LayoutOpts m => FromString (m Doc) where
-        fromString str = pure $ fromString str
-
-    export
-    empty : Doc
+    empty : Doc opts
     empty = MkDoc [neutral]
 
     export
-    hcat : MonadReader LayoutOpts m => List Doc -> m Doc
-    hcat xs = foldlM (<+>) empty xs
+    hcat : {opts : _} -> List (Doc opts) -> Doc opts
+    hcat xs = foldl (<+>) empty xs
 
     export
-    hsep : MonadReader LayoutOpts m => Doc -> Doc -> m Doc
+    hsep : {opts : _} -> Doc opts -> Doc opts -> Doc opts
     hsep x y = hcat [x, " ", y]
 
     export
-    flush : Doc -> Doc
+    flush : {opts : _} -> Doc opts -> Doc opts
     flush (MkDoc xs) = MkDoc $ map flush xs
 
     export
-    vcat : MonadReader LayoutOpts m => Doc -> Doc -> m Doc
+    vcat : {opts : _} -> Doc opts -> Doc opts -> Doc opts
     vcat x y = flush x <+> y
 
     export
-    indent : MonadReader LayoutOpts m => Nat -> Doc -> m Doc
-    indent k (MkDoc xs) = do
-        opts <- ask
-        pure $ MkDoc
+    indent : {opts : _} -> Nat -> Doc opts -> Doc opts
+    indent k (MkDoc xs) =
+        MkDoc
             [ y
             | x <- xs
             , let y = indent k x
@@ -227,22 +220,18 @@ namespace Doc
             ]
 
     export
-    hang : MonadReader LayoutOpts m => Nat -> Doc -> Doc -> m Doc
-    hang k x y = pure $ !(x <+> y) <|> !(vcat x !(indent k y))
+    hang : {opts : _} -> Nat -> Doc opts -> Doc opts -> Doc opts
+    hang k x y = (x <+> y) <|> vcat x (indent k y)
 
     export
-    text : String -> Doc
+    text : String -> (Doc opts)
     text str = MkDoc [text str]
 
     export
-    sep : MonadReader LayoutOpts m => List Doc -> m Doc
-    sep [] = pure empty
-    sep (x :: xs) = pure $ !(foldl1M hsep (x ::: xs)) <|> !(foldl1M vcat (x ::: xs))
-      where
-        foldl1M : Monad m => (elem -> elem -> m elem) -> List1 elem -> m elem
-        foldl1M f (head ::: tail) = foldlM f head tail
+    sep : {opts : _} -> List (Doc opts) -> Doc opts
+    sep [] = empty
+    sep (x :: xs) = foldl1 hsep (x ::: xs) <|> foldl1 vcat (x ::: xs)
 
 public export
 interface Pretty a where
-    pretty : MonadReader LayoutOpts m => a -> m Doc
-
+    pretty : {opts : _} -> a -> Doc opts
