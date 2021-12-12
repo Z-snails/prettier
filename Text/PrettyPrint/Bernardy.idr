@@ -145,12 +145,12 @@ shortest : List Layout -> Maybe Layout
 shortest [] = Nothing
 shortest (x :: xs) = Just $ foldl (\x, y => if x.height <= y.height then x else y) x xs
 
-||| Render the best candidate from the given set of layouts
-export
-render : (opts : _) -> Doc opts -> Maybe String
-render opts (MkDoc xs) = map render $ shortest $ filter (visible opts) xs
-
 namespace Doc
+    ||| Render the best candidate from the given set of layouts
+    export
+    render : (opts : _) -> Doc opts -> Maybe String
+    render opts (MkDoc xs) = map render $ shortest $ filter (visible opts) xs
+
     insert : Layout -> List Layout -> List Layout -> List Layout
     insert x [] acc = x :: acc
     insert x (y :: ys) acc = case keep x y of
