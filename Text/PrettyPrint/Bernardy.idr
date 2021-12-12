@@ -26,6 +26,13 @@ record Doc (opts : LayoutOpts) where
     constructor MkDoc
     layouts : List Layout
 
+replicateTR : Nat -> Char -> List Char -> String
+replicateTR Z _ acc = pack acc
+replicateTR (S k) c acc = replicateTR k c (c :: acc)
+
+indentTR : Nat -> String -> String
+indentTR k str = replicateTR k ' ' [] ++ str
+
 namespace Layout
     ||| Render the given layout
     export
@@ -80,11 +87,11 @@ namespace Layout
             MkStats : (maxLine, lastLine, height : Int) -> Stats
 
     concatContent' : String -> List String -> List1 String -> Nat -> List String
-    concatContent' x [] (y ::: ys) k = (x ++ y) :: map (indent k) ys
+    concatContent' x [] (y ::: ys) k = (x ++ y) :: map (indentTR k) ys
     concatContent' x (x' :: xs) ys k = x :: concatContent' x' xs ys k
 
     concatContent : List1 String -> List1 String -> Nat -> List1 String
-    concatContent (x ::: []) (y ::: ys) k = (x ++ y) ::: map (indent k) ys
+    concatContent (x ::: []) (y ::: ys) k = (x ++ y) ::: map (indentTR k) ys
     concatContent (x ::: (x' :: xs)) ys k = x ::: concatContent' x' xs ys k
 
     ||| Concatenate to Layouts horizontally
@@ -129,7 +136,7 @@ namespace Layout
 
     export
     indent : Nat -> Layout -> Layout
-    indent k x = fromString (replicate k ' ') <+> x
+    indent k x = fromString (replicateTR k ' ' []) <+> x
 
 visible : LayoutOpts -> Layout -> Bool
 visible opts x = x.maxLine <= opts.lineLength
@@ -154,16 +161,14 @@ namespace Doc
         data Keep = KLeft | KBoth | KRight
 
         keep : Layout -> Layout -> Keep
-        keep x y = case compare x.maxLine y.maxLine of
-            LT => if x.lastLine <= y.lastLine
-                    && x.height <= y.height
-                    then KLeft
-                    else KBoth
-            EQ => KBoth
-            GT => if x.lastLine >= y.lastLine
-                    && x.height >= y.height
-                    then KRight
-                    else KBoth
+        keep x y =
+            if x.maxLine == y.maxLine && x.lastLine == y.maxLine && x.height == y.height
+                then KBoth
+            else if x.maxLine <= y.maxLine && x.lastLine <= y.maxLine && x.height <= y.height
+                then KLeft
+            else if x.maxLine >= y.maxLine && x.lastLine >= y.maxLine && x.height >= y.height
+                then KRight
+            else KBoth
 
     combine : List Layout -> List Layout -> List Layout
     combine [] ys = ys
