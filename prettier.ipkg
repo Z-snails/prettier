@@ -1,0 +1,6 @@
+package prettier
+sourcedir = "src"
+modules = Text.PrettyPrint.Bernardy
+
+
+

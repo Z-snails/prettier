@@ -1,9 +1,0 @@
-package Prettier
-
-modules = Text.PrettyPrint.Bernardy 
-
-
-sourcedir = "."
-builddir = "build"
-
-version = 0.0.1
