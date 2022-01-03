@@ -240,3 +240,7 @@ namespace Doc
 public export
 interface Pretty a where
     pretty : {opts : _} -> a -> Doc opts
+
+public export
+interface PrettyPrec prec a where
+    prettyPrec : prec -> a -> Doc opts
