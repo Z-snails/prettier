@@ -237,6 +237,12 @@ namespace Doc
     sep [] = empty
     sep (x :: xs) = foldl1 hsep (x ::: xs) <|> foldl1 vcat (x ::: xs)
 
+    infixl 7 <++>
+
+    export
+    (<++>) : {opts : _} -> Doc opts -> Doc opts -> Doc opts
+    l <++> r = l <+> " " <+> r
+
 public export
 interface Pretty a where
     pretty : {opts : _} -> a -> Doc opts
