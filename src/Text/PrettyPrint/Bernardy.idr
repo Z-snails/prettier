@@ -248,5 +248,5 @@ interface Pretty a where
     pretty : {opts : _} -> a -> Doc opts
 
 public export
-interface PrettyPrec prec a where
+interface PrettyPrec prec a | a where
     prettyPrec : {opts : _} -> prec -> a -> Doc opts
