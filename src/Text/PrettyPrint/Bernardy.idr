@@ -1,64 +1,117 @@
 module Text.PrettyPrint.Bernardy
 
-import Data.String
+import Data.DPair
 import Data.List
-import Data.List1
-import public Control.Monad.Reader
-import public Control.Monad.Identity
+import Data.String
 
 %default total
+
+--------------------------------------------------------------------------------
+--          NonEmpty SnocList
+--------------------------------------------------------------------------------
+
+public export
+data NonEmptySnoc : SnocList a -> Type where
+  IsNonEmptySnoc : NonEmptySnoc (sx :< x)
+
+0 nonEmptyChips : {auto p : NonEmptySnoc sx} -> NonEmpty (sx <>> xs)
+nonEmptyChips {sx = Lin :< _}        = %search
+nonEmptyChips {sx = h@(_ :< _) :< _} = nonEmptyChips {sx = h}
+
+%inline
+kcap : SnocList Char -> String
+kcap = pack . (<>> [])
+
+allLines :
+     (inp : List Char)
+  -> (sc : SnocList Char)
+  -> SnocList String
+  -> SnocList String
+allLines []                   sc sl = sl :< kcap sc
+allLines ('\n' :: '\r' :: xs) sc sl = allLines xs Lin (sl :< kcap sc)
+allLines ('\n' :: xs)         sc sl = allLines xs Lin (sl :< kcap sc)
+allLines ('\r' :: xs)         sc sl = allLines xs Lin (sl :< kcap sc)
+allLines (x :: xs)            sc sl = allLines xs (sc :< x) sl
+
+--------------------------------------------------------------------------------
+--          Stats
+--------------------------------------------------------------------------------
 
 public export
 record LayoutOpts where
     constructor Opts
-    lineLength : Int
+    lineLength : Nat
+
+record Stats where
+    constructor MkStats
+    maxLine  : Nat
+    lastLine : Nat
+    height   : Nat
+
+-- stats for a string without line breaks
+lstats : String -> Stats
+lstats s = let n := length s in MkStats n n 0
+
+-- updates the stats after appending a string without line break
+addStats : String -> Stats -> Stats
+addStats s (MkStats ml ll h) = MkStats (max ml $ length s) ll (S h)
+
+-- Compare two stats in the precense of a maximal page width
+-- We consider a layout `x` to be superior than layout `y`
+-- if
+--   a) the two layouts do not overflow the page and
+--      all stats of `x` are smaller or equal than the stats of `y`,
+-- or
+--   b) `y` overflows the page and the width of `x` is smaller than the
+--      one of `y`
+-- If neither a) nor b) hold for one the arguments, this function
+-- returns `EQ`.
+compStats : LayoutOpts -> Stats -> Stats -> Ordering
+compStats (Opts ll) (MkStats mll lll hl) (MkStats mlr llr hr) =
+  -- if one layout overflows, keep only the narrower
+  if      mll < mlr && ll < mlr then LT
+  else if mlr < mll && ll < mll then GT
+  -- if one layout dominates the other, keep only the
+  -- dominating one.
+  else if mll <= mlr && lll <= llr && hl <= hr then LT
+  else if mlr <= mll && llr <= lll && hr <= hl then GT
+  else    EQ
+
+--------------------------------------------------------------------------------
+--          Layout
+--------------------------------------------------------------------------------
 
 export
 record Layout where
     constructor MkLayout
-    content : List1 String
-    maxLine : Int
-    lastLine : Int
-    height : Int
+    -- it is essential that we are lazy here: When deciding on the best
+    -- layout, we only need the stats but not the actual list of lines.
+    -- we need those only when computing the layout we eventually decide on.
+    content : Lazy (SnocList String)
+    stats   : Stats
+    {auto 0 prf : NonEmptySnoc content}
 
-export
-record Doc (opts : LayoutOpts) where
-    constructor MkDoc
-    layouts : List Layout
-
-replicateTR : Nat -> Char -> List Char -> String
-replicateTR Z _ acc = pack acc
-replicateTR (S k) c acc = replicateTR k c (c :: acc)
-
-indentTR : Nat -> String -> String
-indentTR k str = replicateTR k ' ' [] ++ str
+layout : Lazy (Subset (SnocList String) NonEmptySnoc) -> Stats -> Layout
+layout ss st = MkLayout (fst ss) st @{snd ss}
 
 namespace Layout
+
+    ||| The empty layout, consisting of a single empty line.
+    export
+    empty : Layout
+    empty = MkLayout [<""] (MkStats 0 0 0)
+
     ||| Render the given layout
     export
     render : Layout -> String
-    render (MkLayout (l ::: ls) _ _ _) = unlines (l :: ls)
+    render (MkLayout sl _) = unlines (sl <>> [])
 
     ||| Convert a single line of text to a layout.
     |||
     ||| @ str this must be single line of text.
     export
     line : (str : String) -> Layout
-    line str =
-        let len = prim__strLength str
-        in MkLayout
-            { content = str ::: []
-            , maxLine = len
-            , lastLine = len
-            , height = 0
-            }
-
-    allLines : (inp : List Char) -> (acc : List Char) -> List String
-    allLines [] acc = [pack $ reverse acc]
-    allLines ('\n' :: '\r' :: xs) acc = pack (reverse acc) :: allLines xs []
-    allLines ('\n' :: xs) acc = pack (reverse acc) :: allLines xs []
-    allLines ('\r' :: xs) acc = pack (reverse acc) :: allLines xs []
-    allLines (x :: xs) acc = allLines xs (x :: acc)
+    line s = MkLayout [<s] (lstats s)
 
     ||| Convert a string to a layout.
     ||| This preserves any manual formatting
@@ -66,182 +119,199 @@ namespace Layout
     ||| @ str the String to pretty print
     export
     text : (str : String) -> Layout
-    text str =
-        let ls@(h :: t) = allLines (unpack str) []
-            | [] => line ""
-            (MkStats maxLine lastLine height) =
-                foldl
-                    (\(MkStats maxLine lastLine height), line =>
-                        let len = prim__strLength line
-                         in MkStats (max maxLine len) len (height + 1))
-                    (MkStats 0 0 (-1))
-                    ls
-        in MkLayout
-            { content = h ::: t
-            , maxLine
-            , lastLine
-            , height
-            }
-    where
-        data Stats : Type where
-            MkStats : (maxLine, lastLine, height : Int) -> Stats
+    text str = case allLines (unpack str) Lin Lin of
+      Lin          => empty
+      ls@(sx :< x) => MkLayout ls (foldr addStats (lstats x) sx)
 
-    concatContent' : String -> List String -> List1 String -> Nat -> List String
-    concatContent' x [] (y ::: ys) k = (x ++ y) :: map (indentTR k) ys
-    concatContent' x (x' :: xs) ys k = x :: concatContent' x' xs ys k
 
-    concatContent : List1 String -> List1 String -> Nat -> List1 String
-    concatContent (x ::: []) (y ::: ys) k = (x ++ y) ::: map (indentTR k) ys
-    concatContent (x ::: (x' :: xs)) ys k = x ::: concatContent' x' xs ys k
+    indentOnto :
+         (sx : SnocList String)
+      -> (xs : List String)
+      -> {auto 0 p1 : NonEmptySnoc sx}
+      -> Nat
+      -> Subset (SnocList String) NonEmptySnoc
+    indentOnto sx []        _ = Element sx p1
+    indentOnto sx (x :: xs) n = indentOnto (sx :< indent n x) xs n
+
+    appendOnto :
+         (sx : SnocList String)
+      -> (xs : List String)
+      -> {auto 0 p1 : NonEmptySnoc sx}
+      -> {auto 0 p2 : NonEmpty xs}
+      -> Nat
+      -> Subset (SnocList String) NonEmptySnoc
+    appendOnto (sx :< x) (y :: ys) n = indentOnto (sx :< (x ++ y)) ys n
+
 
     ||| Concatenate to Layouts horizontally
     export
     Semigroup Layout where
-        left <+> right = MkLayout
-            { content =
-                concatContent
-                    left.content
-                    right.content
-                    (cast left.lastLine)
-            , maxLine = max left.maxLine $ left.lastLine + right.maxLine
-            , lastLine = left.lastLine + right.lastLine
-            , height = left.height + right.height
-            }
+      MkLayout c s <+> MkLayout d t =
+        let -- this is needed for the call to `appendOnto` below
+            0 prf        := nonEmptyChips {xs = []} {sx = d}
 
-    export
+            newStats     :=
+              MkStats {
+                maxLine  = max s.maxLine $ s.lastLine + t.maxLine
+              , lastLine = s.lastLine + t.maxLine
+              , height   = s.height + t.height
+              }
+
+         in layout (appendOnto c (d <>> []) s.lastLine) newStats
+
+    export %inline
     Monoid Layout where
-        neutral = MkLayout
-            { content = "" ::: []
-            , maxLine = 0
-            , lastLine = 0
-            , height = 0
-            }
+      neutral = empty
 
     export %inline
     FromString Layout where
-        fromString = text
+      fromString = text
 
     export
     flush : Layout -> Layout
-    flush x = MkLayout
-        { content = addNL x.content.head x.content.tail
-        , maxLine = x.maxLine
-        , lastLine = 0
-        , height = x.height + 1
-        }
-    where
-        addNL : String -> List String -> List1 String
-        addNL x [] = x ::: [""]
-        addNL x (y :: xs) = x ::: forget (addNL y xs)
+    flush (MkLayout sl $ MkStats ml _ h) =
+      MkLayout (sl :< "") (MkStats ml 0 $ S h)
 
     export
     indent : Nat -> Layout -> Layout
-    indent k x = fromString (replicateTR k ' ' []) <+> x
+    -- we make sure to not force the indent and make use
+    -- of our knowledge about the stats.
+    indent k x = MkLayout [< replicate k ' '] (MkStats k k 0) <+> x
 
-visible : LayoutOpts -> Layout -> Bool
-visible opts x = x.maxLine <= opts.lineLength
+    shortest : Layout -> List Layout -> Layout
+    shortest x xs =
+      foldl (\x,y => if x.stats.height <= y.stats.height then x else y) x xs
 
-shortest : List Layout -> Maybe Layout
-shortest [] = Nothing
-shortest (x :: xs) = Just $ foldl (\x, y => if x.height <= y.height then x else y) x xs
+--------------------------------------------------------------------------------
+--          Doc
+--------------------------------------------------------------------------------
+
+export
+record Doc (opts : LayoutOpts) where
+    constructor MkDoc
+    head : Layout
+    tail : List Layout
+
+export %inline
+singleton : Layout -> Doc opts
+singleton l = MkDoc l []
+
+layouts : Doc opts -> List Layout
+layouts (MkDoc h t) = h :: t
 
 namespace Doc
     ||| Render the best candidate from the given set of layouts
     export
-    render : (opts : _) -> Doc opts -> Maybe String
-    render opts (MkDoc xs) = map render $ shortest $ filter (visible opts) xs
+    render : (opts : _) -> Doc opts -> String
+    render opts (MkDoc x xs) = render $ shortest x xs
 
-    insert : Layout -> List Layout -> List Layout -> List Layout
-    insert x [] acc = x :: acc
-    insert x (y :: ys) acc = case keep x y of
-        KLeft => insert x ys acc
-        KBoth => insert x ys (y :: acc)
-        KRight => reverseOnto (y :: acc) ys
-      where
-        data Keep = KLeft | KBoth | KRight
+    chips1 : SnocList Layout -> Layout -> List Layout -> Doc opts
+    chips1 [<]       x xs = MkDoc x xs
+    chips1 (sx :< y) x xs = chips1 sx y (x :: xs)
 
-        keep : Layout -> Layout -> Keep
-        keep x y =
-            if x.maxLine == y.maxLine && x.lastLine == y.maxLine && x.height == y.height
-                then KBoth
-            else if x.maxLine <= y.maxLine && x.lastLine <= y.maxLine && x.height <= y.height
-                then KLeft
-            else if x.maxLine >= y.maxLine && x.lastLine >= y.maxLine && x.height >= y.height
-                then KRight
-            else KBoth
+    insert : 
+         {opts : _}
+      -> SnocList Layout
+      -> List Layout
+      -> Layout
+      -> Doc opts
+    insert sl []       x = chips1 sl x []
+    insert sl (h :: t) x = case compStats opts x.stats h.stats of
+      LT => insert sl t x
+      EQ => insert (sl :< h) t x
+      GT => chips1 sl h t
 
-    combine : List Layout -> List Layout -> List Layout
-    combine [] ys = ys
-    combine (x :: xs) ys = combine xs (insert x ys [])
+    combine : {opts : _} -> Doc opts -> List Layout -> Doc opts
+    combine d []        = d
+    combine d (y :: ys) = combine (insert Lin (layouts d) y) ys
 
-    export %inline
-    (<|>) : Doc opts -> Doc opts -> Doc opts
-    MkDoc xs <|> MkDoc ys = MkDoc $ combine xs ys
+    export
+    (<|>) : {opts : _} -> Doc opts -> Doc opts -> Doc opts
+    x <|> y = combine x $ layouts y
 
     export %inline
     (<+>) : {opts : _} -> Doc opts -> Doc opts -> Doc opts
-    MkDoc xs <+> MkDoc ys =
-        MkDoc $ combine
-            [ z
-            | x <- xs
-            , y <- ys
-            , let z = x <+> y
-            , visible opts z
-            ]
-            []
+    MkDoc x xs <+> MkDoc y ys =
+      let appYs := \v => MkDoc (v <+> y) (map (v <+>) ys)
+          ini   := appYs x
+       in foldl (\acc,x => combine {opts} (appYs x) $ layouts acc) ini xs
 
     export
     FromString (Doc opts) where
-        fromString str = MkDoc [fromString str]
-
+        fromString str = singleton $ fromString str
+    
     export
     empty : Doc opts
-    empty = MkDoc [neutral]
+    empty = singleton neutral
+
+    export %inline
+    line : String -> Doc opts
+    line = singleton . line
+    
+    export %inline
+    symbol : Char -> Doc opts
+    symbol = line . singleton
+
+    export
+    space : Doc opts
+    space = symbol ' '
 
     export
     hcat : {opts : _} -> List (Doc opts) -> Doc opts
     hcat xs = foldl (<+>) empty xs
-
-    export
+    
+    infixl 7 <++>
+    
+    export %inline
     hsep : {opts : _} -> Doc opts -> Doc opts -> Doc opts
-    hsep x y = hcat [x, " ", y]
-
+    hsep x y = x <+> space <+> y
+    
+    ||| Concatenates two documents horizontally with a single space between them.
+    export %inline
+    (<++>) : {opts : _} -> Doc opts -> Doc opts -> Doc opts
+    (<++>) = hsep
+    
+    ||| Flushes the last line of the given document, so that an appended
+    ||| document starts on a new line.
     export
     flush : {opts : _} -> Doc opts -> Doc opts
-    flush (MkDoc xs) = MkDoc $ map flush xs
-
+    flush (MkDoc x xs) = MkDoc (flush x) $ map flush xs
+    
+    ||| Concatenates two documents vertically.
     export
     vcat : {opts : _} -> Doc opts -> Doc opts -> Doc opts
     vcat x y = flush x <+> y
 
+    ||| Indents the given document by a number of spaces.
     export
     indent : {opts : _} -> Nat -> Doc opts -> Doc opts
-    indent k (MkDoc xs) =
-        MkDoc
-            [ y
-            | x <- xs
-            , let y = indent k x
-            , visible opts y
-            ]
+    indent k (MkDoc  x xs) =
+      foldl (\acc,x => insert Lin (layouts acc) (indent k x)) (singleton x) xs
 
+    ||| Tries to layout the two documents horizontally, but appends
+    ||| the second indented by the given number of spaces below the
+    ||| first if the horizontal version exceeds the width limit.
     export
     hang : {opts : _} -> Nat -> Doc opts -> Doc opts -> Doc opts
     hang k x y = (x <+> y) <|> vcat x (indent k y)
 
+    ||| Like `hang` but separates the two docs by a space in case of
+    ||| a horizontal alignment.
     export
-    text : String -> (Doc opts)
-    text str = MkDoc [text str]
+    hangSep : {opts : _} -> Nat -> Doc opts -> Doc opts -> Doc opts
+    hangSep k x y = (x <++> y) <|> vcat x (indent k y)
 
+    export %inline
+    text : String -> (Doc opts)
+    text = singleton . text
+
+    ||| Tries to separate the given documents horizontally, but
+    ||| concatenates them vertically if the horizontal layout exceeds the
+    ||| width limit.
     export
     sep : {opts : _} -> List (Doc opts) -> Doc opts
-    sep [] = empty
-    sep (x :: xs) = foldl1 hsep (x ::: xs) <|> foldl1 vcat (x ::: xs)
-
-    infixl 7 <++>
-
-    export
-    (<++>) : {opts : _} -> Doc opts -> Doc opts -> Doc opts
-    l <++> r = l <+> " " <+> r
+    sep []        = empty
+    sep (x :: xs) = foldl hsep x xs <|> foldl vcat x xs
 
 public export
 interface Pretty a where
