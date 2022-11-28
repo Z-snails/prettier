@@ -56,7 +56,7 @@ lstats s = let n := length s in MkStats n n 0
 addStats : String -> Stats -> Stats
 addStats s (MkStats ml ll h) = MkStats (max ml $ length s) ll (S h)
 
--- Compare two stats in the precense of a maximal page width
+-- Compare two stats in the precense of a maximal page width.
 -- We consider a layout `x` to be superior than layout `y`
 -- if
 --   a) the two layouts do not overflow the page and
@@ -84,9 +84,13 @@ compStats (Opts ll) (MkStats mll lll hl) (MkStats mlr llr hr) =
 export
 record Layout where
     constructor MkLayout
-    -- it is essential that we are lazy here: When deciding on the best
+    -- It is essential that we are lazy here: When deciding on the best
     -- layout, we only need the stats but not the actual list of lines.
-    -- we need those only when computing the layout we eventually decide on.
+    -- We need those only when rendering the preferred layout.
+    --
+    -- We use a `SnocList` because we often concatenate layouts
+    -- by using left folds over lists of layouts. A `SnocList` is a
+    -- natural and efficient accumulator in a left fold.
     content : Lazy (SnocList String)
     stats   : Stats
     {auto 0 prf : NonEmptySnoc content}
@@ -122,7 +126,6 @@ namespace Layout
     text str = case allLines (unpack str) Lin Lin of
       Lin          => empty
       ls@(sx :< x) => MkLayout ls (foldr addStats (lstats x) sx)
-
 
     indentOnto :
          (sx : SnocList String)
@@ -174,8 +177,8 @@ namespace Layout
 
     export
     indent : Nat -> Layout -> Layout
-    -- we make sure to not force the indent and make use
-    -- of our knowledge about the stats.
+    -- We make sure to not force the string of empty chars and make use
+    -- of our knowledge about its stats.
     indent k x = MkLayout [< replicate k ' '] (MkStats k k 0) <+> x
 
     shortest : Layout -> List Layout -> Layout
@@ -186,16 +189,18 @@ namespace Layout
 --          Doc
 --------------------------------------------------------------------------------
 
+||| A non-empty selection of possible layouts.
 export
 record Doc (opts : LayoutOpts) where
     constructor MkDoc
     head : Layout
     tail : List Layout
 
-export %inline
+%inline
 singleton : Layout -> Doc opts
 singleton l = MkDoc l []
 
+%inline
 layouts : Doc opts -> List Layout
 layouts (MkDoc h t) = h :: t
 
@@ -205,9 +210,10 @@ namespace Doc
     render : (opts : _) -> Doc opts -> String
     render opts (MkDoc x xs) = render $ shortest x xs
 
+    -- prepend layouts in a SnocList to a list of layouts.
     chips1 : SnocList Layout -> Layout -> List Layout -> Doc opts
-    chips1 [<]       x xs = MkDoc x xs
     chips1 (sx :< y) x xs = chips1 sx y (x :: xs)
+    chips1 [<]       x xs = MkDoc x xs
 
     insert : 
          {opts : _}
@@ -222,46 +228,87 @@ namespace Doc
       GT => chips1 sl h t
 
     combine : {opts : _} -> Doc opts -> List Layout -> Doc opts
-    combine d []        = d
     combine d (y :: ys) = combine (insert Lin (layouts d) y) ys
+    combine d []        = d
 
-    export
+    ||| Choose the better of two different documents.
+    export %inline
     (<|>) : {opts : _} -> Doc opts -> Doc opts -> Doc opts
     x <|> y = combine x $ layouts y
 
-    export %inline
+    ||| Concatenate two documents horizontally.
+    |||
+    ||| The first line of the second document will be appended
+    ||| to the last line of the first, and the remaining lines
+    ||| of the second will be indented accordingly.
+    |||
+    ||| For instance, for documents `x` and `y` of the following
+    ||| shapes
+    |||
+    ||| ```
+    ||| xxxxxxxxxxx
+    ||| xxxxxxxxxxxxxx
+    ||| xxx
+    ||| ```
+    ||| and
+    |||
+    ||| ```
+    ||| yyyyy
+    ||| yy
+    ||| yyyy
+    ||| ```
+    ||| the result will be aligned as follows:
+    |||
+    ||| ```
+    ||| xxxxxxxxxxx
+    ||| xxxxxxxxxxxxxx
+    ||| xxxyyyyy
+    |||    yy
+    |||    yyyy
+    ||| ```
+    export
     (<+>) : {opts : _} -> Doc opts -> Doc opts -> Doc opts
     MkDoc x xs <+> MkDoc y ys =
       let appYs := \v => MkDoc (v <+> y) (map (v <+>) ys)
           ini   := appYs x
        in foldl (\acc,x => combine {opts} (appYs x) $ layouts acc) ini xs
 
-    export
+    export %inline
     FromString (Doc opts) where
         fromString str = singleton $ fromString str
     
-    export
+    ||| The empty document, consisting of a single emtpy line.
+    export %inline
     empty : Doc opts
     empty = singleton neutral
 
+    ||| Creates a single-line document from the given string.
+    |||
+    ||| @str A string without line breaks
     export %inline
-    line : String -> Doc opts
+    line : (str : String) -> Doc opts
     line = singleton . line
     
+    ||| Creates a single-line document from the given character.
+    |||
+    ||| @c A printable non-control character.
     export %inline
-    symbol : Char -> Doc opts
+    symbol : (c : Char) -> Doc opts
     symbol = line . singleton
 
+    ||| A single space character.
     export
     space : Doc opts
     space = symbol ' '
 
-    export
+    ||| Concatenate a sequence of documents horizontally using `(<+>)`.
+    export %inline
     hcat : {opts : _} -> List (Doc opts) -> Doc opts
     hcat xs = foldl (<+>) empty xs
     
     infixl 7 <++>
     
+    ||| Concatenates two documents horizontally with a single space between them.
     export %inline
     hsep : {opts : _} -> Doc opts -> Doc opts -> Doc opts
     hsep x y = x <+> space <+> y
@@ -295,12 +342,13 @@ namespace Doc
     hang : {opts : _} -> Nat -> Doc opts -> Doc opts -> Doc opts
     hang k x y = (x <+> y) <|> vcat x (indent k y)
 
-    ||| Like `hang` but separates the two docs by a space in case of
+    ||| Like `hang` but separates the two documents by a space in case of
     ||| a horizontal alignment.
     export
     hangSep : {opts : _} -> Nat -> Doc opts -> Doc opts -> Doc opts
     hangSep k x y = (x <++> y) <|> vcat x (indent k y)
 
+    ||| Displays a single string, preserving any manual formatting.
     export %inline
     text : String -> (Doc opts)
     text = singleton . text
