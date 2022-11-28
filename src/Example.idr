@@ -1,7 +1,7 @@
 module Example
 
+import Data.List1
 import Text.PrettyPrint.Bernardy
-import Data.Maybe
 
 data SExp = SAtom String | SList (List SExp)
 
@@ -25,4 +25,4 @@ opts : LayoutOpts
 opts = Opts 60
 
 main : IO ()
-main = putStrLn $ fromMaybe "ERROR" $ Doc.render opts $ pretty $ generateSExp 7
+main = putStrLn $ Doc.render opts $ pretty $ generateSExp 9
