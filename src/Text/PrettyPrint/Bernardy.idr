@@ -56,7 +56,7 @@ lstats s = let n := length s in MkStats n n 0
 addStats : String -> Stats -> Stats
 addStats s (MkStats ml ll h) = MkStats (max ml $ length s) ll (S h)
 
--- Compare two stats in the precense of a maximal page width.
+-- Compare two stats in the presence of a maximal page width.
 -- We consider a layout `x` to be superior than layout `y`
 -- if
 --   a) the two layouts do not overflow the page and
