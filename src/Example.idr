@@ -6,8 +6,8 @@ import Text.PrettyPrint.Bernardy
 data SExp = SAtom String | SList (List SExp)
 
 Pretty SExp where
-    pretty (SAtom x) = fromString x
-    pretty (SList xs) = hcat ["(", sep $ map pretty xs, ")"]
+    prettyPrec _ (SAtom x) = fromString x
+    prettyPrec _ (SList xs) = hcat ["(", sep $ map pretty xs, ")"]
 
 generateSExp : Nat -> SExp
 generateSExp Z = SList [SAtom "a", SAtom "b", SAtom "c", SAtom "d", SAtom "e", SAtom "f"]
