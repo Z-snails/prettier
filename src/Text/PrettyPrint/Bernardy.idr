@@ -485,11 +485,38 @@ export
 brackets : {opts : _} -> Doc opts -> Doc opts
 brackets = enclose lbrace rbrace
 
+||| Pretty prints a list of documents separated by the given delimiter
+||| and wrapping them in opening and closing symbols.
+|||
+||| If it fits the page width, the document is layed out horizontally,
+||| otherwise it's layed out vertically with  leading commas.
+|||
+||| Horizontal layout for `generalList "[" "]" "," [1,2,3]:
+|||
+||| ```
+||| [1, 2, 3]
+||| ```
+|||
+||| Vertical layout:
+|||
+||| ```
+||| [ 1
+||| , 2
+||| , 3
+||| ]
+||| ```
+export
+generalList : {opts : _} -> (o,c,sep : Doc opts) -> List (Doc opts) -> Doc opts
+generalList o c sep []        = o <+> c
+generalList o c sep (x :: xs) =
+  let xs' := map (sep <++>) xs ++ [c]
+   in foldl (<+>) o (x :: xs') <|> foldl vcat (hsep o x) xs'
+
 ||| Pretty prints a list of documents separated by commas
 ||| and wrapping them in brackets.
 |||
 ||| If it fits the page width, the document is layed out horizontally,
-||| otherwise it's layed out vertically with  leading commas.
+||| otherwise it's layed out vertically with leading delimiters.
 |||
 ||| Horizontal layout:
 |||
@@ -505,13 +532,9 @@ brackets = enclose lbrace rbrace
 ||| , 3
 ||| ]
 ||| ```
-export
+export %inline
 list : {opts : _} -> List (Doc opts) -> Doc opts
-list []        = line "[]"
-list (x :: xs) =
-  let xs' := map (comma <++>) xs ++ [rbracket]
-   in foldl (<+>) lbracket (x :: xs') <|>
-      foldl vcat (hsep lbracket x) xs'
+list = generalList lbracket rbracket comma
 
 ||| Pretty prints a `SnocList` of documents separated by commas
 ||| and wrapping them in brackets.
@@ -535,9 +558,46 @@ list (x :: xs) =
 ||| ```
 export
 snocList : {opts : _} -> List (Doc opts) -> Doc opts
-snocList []        = line "[<]"
-snocList (x :: xs) =
-  let xs' := map (comma <++>) xs ++ [rbracket]
-      lb  := line "[<"
-   in foldl (<+>) lb (x :: xs') <|>
-      foldl vcat (lb <+> x) xs'
+snocList = generalList (line "[<") rbracket comma
+
+||| Pretty prints a list of documents separated by commas
+||| and wrapping them in parentheses.
+|||
+||| Horizontal layout:
+|||
+||| ```
+||| (x, y, z)
+||| ```
+|||
+||| Vertical layout:
+|||
+||| ```
+||| ( x
+||| , y
+||| , z
+||| )
+||| ]
+export
+tuple : {opts : _} -> List (Doc opts) -> Doc opts
+tuple = generalList lparen rparen comma
+
+||| Pretty prints a list of documents separated by commas
+||| and wrapping them in curly braces.
+|||
+||| Horizontal layout:
+|||
+||| ```
+||| {x, y, z}
+||| ```
+|||
+||| Vertical layout:
+|||
+||| ```
+||| { x
+||| , y
+||| , z
+||| }
+||| ]
+export
+fields : {opts : _} -> List (Doc opts) -> Doc opts
+fields = generalList lbrace rbrace comma
