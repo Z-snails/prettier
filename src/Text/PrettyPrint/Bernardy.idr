@@ -361,13 +361,14 @@ namespace Doc
     sep []        = empty
     sep (x :: xs) = foldl hsep x xs <|> foldl vcat x xs
 
-public export
-interface Pretty a where
-    pretty : {opts : _} -> a -> Doc opts
+--------------------------------------------------------------------------------
+--          Interface
+--------------------------------------------------------------------------------
 
 public export
-interface PrettyPrec prec a | a where
-    prettyPrec : {opts : _} -> prec -> a -> Doc opts
+interface Pretty a where
+    constructor MkPretty
+    prettyPrec : {opts : _} -> Prec -> a -> Doc opts
 
 --------------------------------------------------------------------------------
 --          Utilities
