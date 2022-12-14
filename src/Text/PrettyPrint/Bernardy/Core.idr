@@ -298,8 +298,7 @@ namespace Doc
     ||| Indents the given document by a number of spaces.
     export
     indent : {opts : _} -> Nat -> Doc opts -> Doc opts
-    indent k (MkDoc  x xs) =
-      foldl (\acc,x => insert Lin (layouts acc) (indent k x)) (singleton x) xs
+    indent k (MkDoc  x xs) = combine (singleton $ indent k x) (indent k <$> xs)
 
     ||| Displays a single string, preserving any manual formatting.
     export %inline
