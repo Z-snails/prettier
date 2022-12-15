@@ -100,6 +100,21 @@ layout ss st = MkLayout (fst ss) st @{snd ss}
 
 namespace Layout
 
+    ||| Returns the number of lines in a `Layout`.
+    export %inline
+    height : Layout -> Nat
+    height = S . height . stats
+
+    ||| Returns the number of lines in a `Layout`.
+    export %inline
+    isMultiline : Layout -> Bool
+    isMultiline = (> 1) . height
+
+    ||| Returns the width of the longest line in a `Layout`
+    export %inline
+    width : Layout -> Nat
+    width = maxLine . stats
+
     ||| The empty layout, consisting of a single empty line.
     export
     empty : Layout
@@ -196,9 +211,9 @@ record Doc (opts : LayoutOpts) where
     head : Layout
     tail : List Layout
 
-%inline
-singleton : Layout -> Doc opts
-singleton l = MkDoc l []
+export %inline
+pure : Layout -> Doc opts
+pure l = MkDoc l []
 
 %inline
 layouts : Doc opts -> List Layout
@@ -275,19 +290,19 @@ namespace Doc
 
     export %inline
     FromString (Doc opts) where
-        fromString str = singleton $ fromString str
+        fromString str = pure $ fromString str
     
     ||| The empty document, consisting of a single emtpy line.
     export %inline
     empty : Doc opts
-    empty = singleton neutral
+    empty = pure neutral
 
     ||| Creates a single-line document from the given string.
     |||
     ||| @str A string without line breaks
     export %inline
     line : (str : String) -> Doc opts
-    line = singleton . line
+    line = pure . line
     
     ||| Flushes the last line of the given document, so that an appended
     ||| document starts on a new line.
@@ -298,9 +313,13 @@ namespace Doc
     ||| Indents the given document by a number of spaces.
     export
     indent : {opts : _} -> Nat -> Doc opts -> Doc opts
-    indent k (MkDoc  x xs) = combine (singleton $ indent k x) (indent k <$> xs)
+    indent k (MkDoc  x xs) = combine (pure $ indent k x) (indent k <$> xs)
 
     ||| Displays a single string, preserving any manual formatting.
     export %inline
     text : String -> (Doc opts)
-    text = singleton . text
+    text = pure . text
+
+    export
+    (>>=) : {opts : _} -> Doc opts -> (Layout -> Doc opts) -> Doc opts
+    (>>=) (MkDoc x xs) f = foldl (\d,l => d <|> f l) (f x) xs
