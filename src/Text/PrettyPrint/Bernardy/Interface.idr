@@ -88,7 +88,7 @@ prettyRecord p c []   = line c
 prettyRecord p c args =
   let con  := line c
       flds := fields args
-   in parenthesise (p >= App)$
+   in parenthesise (p >= App) $
         ifMultiline (con <++> flds) (flds `onLineAfter` con)
 
 --------------------------------------------------------------------------------
