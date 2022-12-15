@@ -141,52 +141,72 @@ brackets = enclose lbrace rbrace
 --          Combining Documents
 --------------------------------------------------------------------------------
 
-||| Concatenate a sequence of documents horizontally using `(<+>)`.
-export %inline
-hcat : {opts : _} -> List (Doc opts) -> Doc opts
-hcat xs = foldl (<+>) empty xs
-
 infixl 7 <++>
 
 ||| Concatenates two documents horizontally with a single space between them.
 export %inline
-hsep : {opts : _} -> Doc opts -> Doc opts -> Doc opts
-hsep x y = x <+> space <+> y
-
-||| Concatenates two documents horizontally with a single space between them.
-export %inline
 (<++>) : {opts : _} -> Doc opts -> Doc opts -> Doc opts
-(<++>) = hsep
+x <++> y = x <+> space <+> y
 
-||| Concatenates two documents vertically.
 export
-vcat : {opts : _} -> Doc opts -> Doc opts -> Doc opts
-vcat x y = flush x <+> y
+vappend : {opts : _} -> Doc opts -> Doc opts -> Doc opts
+vappend x y = flush x <+> y
+
+||| Concatenate a sequence of documents horizontally using `(<+>)`.
+export
+hcat : {opts : _} -> List (Doc opts) -> Doc opts
+hcat []       = empty
+hcat (h :: t) = foldl (<+>) h t
+
+||| Concatenate a sequence of documents horizontally using `(<++>)`.
+export
+hsep : {opts : _} -> List (Doc opts) -> Doc opts
+hsep []       = empty
+hsep (h :: t) = foldl (<++>) h t
+
+||| Concatenate a list of documents vertically.
+export
+vsep : {opts : _} -> List (Doc opts) -> Doc opts
+vsep []       = empty
+vsep (h :: t) = foldl vappend h t
 
 ||| Tries to layout the two documents horizontally, but appends
 ||| the second indented by the given number of spaces below the
 ||| first if the horizontal version exceeds the width limit.
 export
 hang : {opts : _} -> Nat -> Doc opts -> Doc opts -> Doc opts
-hang k x y = (x <+> y) <|> vcat x (indent k y)
+hang k x y = (x <+> y) <|> vappend x (indent k y)
 
 ||| Like `hang` but separates the two documents by a space in case of
 ||| a horizontal alignment.
 export
 hangSep : {opts : _} -> Nat -> Doc opts -> Doc opts -> Doc opts
-hangSep k x y = (x <++> y) <|> vcat x (indent k y)
+hangSep k x y = (x <++> y) <|> vappend x (indent k y)
 
 ||| Tries to separate the given documents horizontally, but
 ||| concatenates them vertically if the horizontal layout exceeds the
 ||| width limit.
 export
 sep : {opts : _} -> List (Doc opts) -> Doc opts
-sep []        = empty
-sep (x :: xs) = foldl hsep x xs <|> foldl vcat x xs
+sep xs = hsep xs <|> vsep xs
 
 --------------------------------------------------------------------------------
 --          Lists of Documents
 --------------------------------------------------------------------------------
+
+||| Tries to layout the first document on a single line, replacing
+||| it with the alternative if a) it does not fit the page with or b)
+||| it inherently is placed on several lines.
+|||
+||| This combinator is very useful for pretty printing Idris values
+||| (data constructors, lists, records), because we typically try to
+||| place them on a single line if and only if they fit the page width
+||| and none of their arguments is placed on several lines.
+export
+ifMultiline : {opts : _} -> (doc, alt : Doc opts) -> Doc opts
+ifMultiline doc alt = do
+  l <- doc
+  if isMultiline l then alt else pure l <|> alt
 
 ||| Pretty prints a list of documents separated by the given delimiter
 ||| and wrapping them in opening and closing symbols.
@@ -213,7 +233,7 @@ generalList : {opts : _} -> (o,c,sep : Doc opts) -> List (Doc opts) -> Doc opts
 generalList o c sep []        = o <+> c
 generalList o c sep (x :: xs) =
   let xs' := map (sep <++>) xs ++ [c]
-   in foldl (<+>) o (x :: xs') <|> foldl vcat (hsep o x) xs'
+   in ifMultiline (hcat $ o :: x :: xs') (vsep $ (o <++> x) :: xs')
 
 ||| Pretty prints a list of documents separated by commas
 ||| and wrapping them in brackets.

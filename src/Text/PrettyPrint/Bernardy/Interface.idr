@@ -20,15 +20,76 @@ public export %inline
 prettyArg : Pretty a => {opts : _} -> a -> Doc opts
 prettyArg = prettyPrec App
 
+onLineAfter : {opts : _} -> Doc opts -> Doc opts -> Doc opts
+onLineAfter l d = vappend d (indent 2 l)
+
+-- multilineCon :
+--      {opts : _}
+--   -> (con, firstArg : Doc opts)
+--   -> (args : List (Doc opts))
+--   -> Doc opts
+-- multilineCon con fa as = foldl vcat fa as `onLineAfter` con
+
 ||| Utility for pretty printing Idris data types.
+|||
+||| Constructor name and arguments are layed out on a single line
+||| if and only if they fit the page width
+||| and all pretty printed arguments use only a single line. If
+||| one of these conditions does not hold, the list of arguments is
+||| indented by two spaces and layed out vertically after the constructor
+||| name.
 |||
 ||| ```idris example
 ||| prettyCon "Just" [prettyArg v]
 ||| ```
-public export
+export
 prettyCon : {opts : _} -> Prec -> String -> List (Doc opts) -> Doc opts
-prettyCon p s [] = line s
-prettyCon p s ds = parenthesise (p >= App) (hangSep 2 (line s) (sep ds))
+prettyCon p c []   = line c
+prettyCon p c args =
+  let con := line c
+   in parenthesise (p >= App) $
+        ifMultiline (hsep $ con :: args) (vsep args `onLineAfter` con)
+
+
+||| Utility for pretty printing Idris record fields.
+|||
+||| Field name and value are separated by an equals sign (`=`) and
+||| layed out on a single line if and only if they fit the page width
+||| and the pretty printed values is itself on a single line. If
+||| one of these conditions does not hold, the value is placed on
+||| the next line and indented by two spaces.
+export
+prettyField : Pretty a => {opts : _} -> String -> a -> Doc opts
+prettyField s v =
+  let name := line s <++> equals
+      val  := pretty v
+   in ifMultiline (name <++> val) (val `onLineAfter` name)
+
+||| Utility for pretty printing Idris data types with named arguments.
+|||
+||| This uses record syntax for printing the argument list, but is not
+||| limited to single-constructor data types.
+|||
+||| Constructor name and arguments are layed out on a single line
+||| if and only if they fit the page width
+||| and all pretty printed arguments use only a single line. If
+||| one of these conditions does not hold, the list of arguments is
+||| indented by two spaces and layed out vertically after the constructor
+||| name.
+|||
+||| ```idris example
+||| prettyCon "Just" [prettyArg v]
+||| ```
+|||
+||| Note: Use `prettyField` to pair an argument with its field name.
+export
+prettyRecord : {opts : _} -> Prec -> String -> List (Doc opts) -> Doc opts
+prettyRecord p c []   = line c
+prettyRecord p c args =
+  let con  := line c
+      flds := fields args
+   in parenthesise (p >= App) $
+        ifMultiline (con <++> flds) (flds `onLineAfter` con)
 
 --------------------------------------------------------------------------------
 --          Implementations
