@@ -47,7 +47,8 @@ prettyCon : {opts : _} -> Prec -> String -> List (Doc opts) -> Doc opts
 prettyCon p c []   = line c
 prettyCon p c args =
   let con := line c
-   in ifMultiline (hsep $ con :: args) (vsep args `onLineAfter` con)
+   in parenthesise (p >= App) $
+        ifMultiline (hsep $ con :: args) (vsep args `onLineAfter` con)
 
 
 ||| Utility for pretty printing Idris record fields.
@@ -87,7 +88,8 @@ prettyRecord p c []   = line c
 prettyRecord p c args =
   let con  := line c
       flds := fields args
-   in ifMultiline (con <++> flds) (flds `onLineAfter` con)
+   in parenthesise (p >= App)$
+        ifMultiline (con <++> flds) (flds `onLineAfter` con)
 
 --------------------------------------------------------------------------------
 --          Implementations
