@@ -1,0 +1,9 @@
+[custom.all.prettier]
+type = "local"
+path = "."
+ipkg = "prettier.ipkg"
+
+[custom.all.prettier-bench]
+type = "local"
+path = "bench"
+ipkg = "prettier-bench.ipkg"

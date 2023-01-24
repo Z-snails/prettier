@@ -4,6 +4,3 @@ modules = Text.PrettyPrint.Bernardy
         , Text.PrettyPrint.Bernardy.Combinators
         , Text.PrettyPrint.Bernardy.Core
         , Text.PrettyPrint.Bernardy.Interface
-
-
-

@@ -1,7 +1,0 @@
-[
-  {
-    "name": "prettier",
-    "deps": [],
-    "modules": ["Text.PrettyPrint.Bernardy"]
-  }
-]
