@@ -1,5 +1,8 @@
 module Text.PrettyPrint.Bernardy.Interface
 
+import Data.Vect
+import Data.SortedMap
+import Data.SortedSet
 import Text.PrettyPrint.Bernardy.Combinators
 import Text.PrettyPrint.Bernardy.Core
 
@@ -187,3 +190,15 @@ Pretty a => Pretty (SnocList a) where
 public export
 Pretty a => Pretty b => Pretty (a,b) where
   prettyPrec _ (x,y) = tuple [pretty x, pretty y]
+
+public export
+Pretty a => Pretty (Vect n a) where
+  prettyPrec p vs = prettyPrec p (toList vs)
+
+public export
+Pretty k => Pretty v => Pretty (SortedMap k v) where
+  prettyPrec p m = prettyCon p "fromList" [prettyArg $ SortedMap.toList m]
+
+public export
+Pretty k => Pretty (SortedSet k) where
+  prettyPrec p m = prettyCon p "fromList" [prettyArg $ SortedSet.toList m]
