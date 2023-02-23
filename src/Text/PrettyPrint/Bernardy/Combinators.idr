@@ -8,7 +8,7 @@ import Text.PrettyPrint.Bernardy.Core
 --------------------------------------------------------------------------------
 --          Symbols
 --------------------------------------------------------------------------------
-    
+
 ||| Creates a single-line document from the given character.
 |||
 ||| @c A printable non-control character.
@@ -141,7 +141,7 @@ brackets = enclose lbrace rbrace
 --          Combining Documents
 --------------------------------------------------------------------------------
 
-infixl 7 <++>
+infixl 8 <++>
 
 ||| Concatenates two documents horizontally with a single space between them.
 export %inline
