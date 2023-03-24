@@ -135,7 +135,7 @@ braces = enclose lbrace rbrace
 ||| Encolses a document in brackets.
 export
 brackets : {opts : _} -> Doc opts -> Doc opts
-brackets = enclose lbrace rbrace
+brackets = enclose lbracket rbracket
 
 --------------------------------------------------------------------------------
 --          Combining Documents
