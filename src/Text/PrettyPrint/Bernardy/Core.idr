@@ -39,6 +39,7 @@ allLines (x :: xs)            sc sl = allLines xs (sc :< x) sl
 
 public export
 record LayoutOpts where
+    [noHints]
     constructor Opts
     lineLength : Nat
 
@@ -230,7 +231,7 @@ namespace Doc
     chips1 (sx :< y) x xs = chips1 sx y (x :: xs)
     chips1 [<]       x xs = MkDoc x xs
 
-    insert : 
+    insert :
          {opts : _}
       -> SnocList Layout
       -> List Layout
@@ -291,7 +292,7 @@ namespace Doc
     export %inline
     FromString (Doc opts) where
         fromString str = pure $ fromString str
-    
+
     ||| The empty document, consisting of a single emtpy line.
     export %inline
     empty : Doc opts
@@ -303,7 +304,7 @@ namespace Doc
     export %inline
     line : (str : String) -> Doc opts
     line = pure . line
-    
+
     ||| Flushes the last line of the given document, so that an appended
     ||| document starts on a new line.
     export
