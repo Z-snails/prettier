@@ -141,7 +141,7 @@ brackets = enclose lbracket rbracket
 --          Combining Documents
 --------------------------------------------------------------------------------
 
-infixl 8 <++>
+export infixl 8 <++>
 
 ||| Concatenates two documents horizontally with a single space between them.
 export %inline
