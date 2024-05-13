@@ -162,6 +162,19 @@ export %inline
 (<++>) : {opts : _} -> Doc opts -> Doc opts -> Doc opts
 x <++> y = x <+> space <+> y
 
+export infixl 8 <+?+>
+
+||| Concatenates two documents horizontally with a space between them, if both
+||| documents are not empty.
+export %inline
+(<+?+>) : {opts : _} -> Doc opts -> Doc opts -> Doc opts
+x <+?+> y = do
+  l <- x
+  if isEmpty l then y else do
+    r <- y
+    if isEmpty r then pure l else
+      pure l <+> space <+> pure r
+
 export
 vappend : {opts : _} -> Doc opts -> Doc opts -> Doc opts
 vappend x y = flush x <+> y

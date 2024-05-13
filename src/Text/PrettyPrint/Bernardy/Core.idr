@@ -116,6 +116,10 @@ namespace Layout
     width : Layout -> Nat
     width = maxLine . stats
 
+    export %inline
+    isEmpty : Layout -> Bool
+    isEmpty l = height l == 0 && width l == 0
+
     ||| The empty layout, consisting of a single empty line.
     export
     empty : Layout
