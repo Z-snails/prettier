@@ -141,12 +141,39 @@ brackets = enclose lbracket rbracket
 --          Combining Documents
 --------------------------------------------------------------------------------
 
+||| Tries to layout the first document on a single line, replacing
+||| it with the alternative if a) it does not fit the page with or b)
+||| it inherently is placed on several lines.
+|||
+||| This combinator is very useful for pretty printing Idris values
+||| (data constructors, lists, records), because we typically try to
+||| place them on a single line if and only if they fit the page width
+||| and none of their arguments is placed on several lines.
+export
+ifMultiline : {opts : _} -> (doc, alt : Doc opts) -> Doc opts
+ifMultiline doc alt = do
+  l <- doc
+  if isMultiline l then alt else pure l <|> alt
+
 export infixl 8 <++>
 
 ||| Concatenates two documents horizontally with a single space between them.
 export %inline
 (<++>) : {opts : _} -> Doc opts -> Doc opts -> Doc opts
 x <++> y = x <+> space <+> y
+
+export infixl 8 <+?+>
+
+||| Concatenates two documents horizontally with a space between them, if both
+||| documents are not empty.
+export %inline
+(<+?+>) : {opts : _} -> Doc opts -> Doc opts -> Doc opts
+x <+?+> y = do
+  l <- x
+  if isEmpty l then y else do
+    r <- y
+    if isEmpty r then pure l else
+      pure l <+> space <+> pure r
 
 export
 vappend : {opts : _} -> Doc opts -> Doc opts -> Doc opts
@@ -183,6 +210,20 @@ export
 hangSep : {opts : _} -> Nat -> Doc opts -> Doc opts -> Doc opts
 hangSep k x y = (x <++> y) <|> vappend x (indent k y)
 
+||| Tries to layout the two documents horizontally, but appends
+||| the second indented by the given number of spaces below the
+||| first if the horizontal version exceeds the width limit, or
+||| if needs several lines.
+export
+hang' : {opts : _} -> Nat -> Doc opts -> Doc opts -> Doc opts
+hang' k x y = ifMultiline (x <+> y) (vappend x $ indent k y)
+
+||| Like `hang'` but separates the two documents by a space in case of
+||| a horizontal alignment.
+export
+hangSep' : {opts : _} -> Nat -> Doc opts -> Doc opts -> Doc opts
+hangSep' k x y = ifMultiline (x <++> y) (vappend x $ indent k y)
+
 ||| Tries to separate the given documents horizontally, but
 ||| concatenates them vertically if the horizontal layout exceeds the
 ||| width limit.
@@ -190,23 +231,21 @@ export
 sep : {opts : _} -> List (Doc opts) -> Doc opts
 sep xs = hsep xs <|> vsep xs
 
+||| Tries to separate the given documents horizontally, but
+||| concatenates them vertically if the horizontal layout exceeds the
+||| width limit, or horizontal layout leads to a multiline document.
+export
+sep' : {opts : _} -> List (Doc opts) -> Doc opts
+sep' xs = ifMultiline (hsep xs) (vsep xs)
+
+||| Add the given document only when conditions is true
+when : Bool -> Doc opts -> Doc opts
+when True  = id
+when False = const empty
+
 --------------------------------------------------------------------------------
 --          Lists of Documents
 --------------------------------------------------------------------------------
-
-||| Tries to layout the first document on a single line, replacing
-||| it with the alternative if a) it does not fit the page with or b)
-||| it inherently is placed on several lines.
-|||
-||| This combinator is very useful for pretty printing Idris values
-||| (data constructors, lists, records), because we typically try to
-||| place them on a single line if and only if they fit the page width
-||| and none of their arguments is placed on several lines.
-export
-ifMultiline : {opts : _} -> (doc, alt : Doc opts) -> Doc opts
-ifMultiline doc alt = do
-  l <- doc
-  if isMultiline l then alt else pure l <|> alt
 
 ||| Pretty prints a list of documents separated by the given delimiter
 ||| and wrapping them in opening and closing symbols.
