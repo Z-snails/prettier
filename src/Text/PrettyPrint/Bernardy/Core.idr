@@ -302,6 +302,10 @@ namespace Doc
     empty : Doc opts
     empty = pure neutral
 
+    export
+    (>>=) : {opts : _} -> Doc opts -> (Layout -> Doc opts) -> Doc opts
+    (>>=) (MkDoc x xs) f = foldl (\d,l => d <|> f l) (f x) xs
+
     ||| Creates a single-line document from the given string.
     |||
     ||| @str A string without line breaks
@@ -320,11 +324,14 @@ namespace Doc
     indent : {opts : _} -> Nat -> Doc opts -> Doc opts
     indent k (MkDoc  x xs) = combine (pure $ indent k x) (indent k <$> xs)
 
+    ||| Indents the given document by a number of spaces, if it's not empty.
+    export
+    indent' : {opts : _} -> Nat -> Doc opts -> Doc opts
+    indent' k x = do
+      l <- x
+      pure $ if isEmpty l then l else indent k l
+
     ||| Displays a single string, preserving any manual formatting.
     export %inline
     text : String -> (Doc opts)
     text = pure . text
-
-    export
-    (>>=) : {opts : _} -> Doc opts -> (Layout -> Doc opts) -> Doc opts
-    (>>=) (MkDoc x xs) f = foldl (\d,l => d <|> f l) (f x) xs
