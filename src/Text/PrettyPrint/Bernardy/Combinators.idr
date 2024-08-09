@@ -238,7 +238,7 @@ export
 sep' : {opts : _} -> List (Doc opts) -> Doc opts
 sep' xs = ifMultiline (hsep xs) (vsep xs)
 
-||| Add the given document only when conditions is true
+||| Add the given document only when condition is true
 export
 when : Bool -> Doc opts -> Doc opts
 when True  = id
