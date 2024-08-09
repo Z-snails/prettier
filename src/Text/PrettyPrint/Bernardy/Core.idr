@@ -94,7 +94,7 @@ record Layout where
     -- natural and efficient accumulator in a left fold.
     content : Lazy (SnocList String)
     stats   : Stats
-    {auto 0 prf : NonEmptySnoc content}
+    {auto 0 prfNonEmptyContent : NonEmptySnoc content}
 
 layout : Lazy (Subset (SnocList String) NonEmptySnoc) -> Stats -> Layout
 layout ss st = MkLayout (fst ss) st @{snd ss}
