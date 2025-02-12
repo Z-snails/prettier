@@ -1,5 +1,6 @@
 module Text.PrettyPrint.Bernardy.Interface
 
+import Data.List1
 import Data.Vect
 import Data.SortedMap
 import Data.SortedSet
@@ -182,6 +183,10 @@ Pretty a => Pretty b => Pretty (Either a b) where
 public export %inline
 Pretty a => Pretty (List a) where
   prettyPrec _ = list . map pretty
+
+public export %inline
+Pretty a => Pretty (List1 a) where
+  prettyPrec p vs = prettyPrec p (toList vs)
 
 public export %inline
 Pretty a => Pretty (SnocList a) where
