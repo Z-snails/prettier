@@ -206,4 +206,4 @@ Pretty k => Pretty v => Pretty (SortedMap k v) where
 
 public export
 Pretty k => Pretty (SortedSet k) where
-  prettyPrec p m = prettyCon p "fromList" [prettyArg $ SortedSet.toList m]
+  prettyPrec p m = prettyCon p "fromList" [prettyArg $ Prelude.toList m]
