@@ -207,3 +207,9 @@ Pretty k => Pretty v => Pretty (SortedMap k v) where
 public export
 Pretty k => Pretty (SortedSet k) where
   prettyPrec p m = prettyCon p "fromList" [prettyArg $ Prelude.toList m]
+
+-- Universal interpolation through `Pretty`
+
+export %defaulthint
+ThroughPretty : Pretty a => (layout : LayoutOpts) => Interpolation a
+ThroughPretty = TP where [TP] Interpolation a where interpolate = render layout . pretty
